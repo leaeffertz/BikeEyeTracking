@@ -82,15 +82,18 @@ species cyclist skills:[moving]{
 	init{
 		 location <- any_location_in(shape);
 		 // Define a target point for the cyclist to move to
-        target_point <- one_of(shape).location; // Move to the location of one of the Road agents
-		 
-		
+        target_point <- one_of(shape).location; // Move to the location of one of the Road agents 
 	}
 	reflex move_to_target {
 		do wander speed:2 bounds: difficult;
     }
+    reflex stress{
+    	
+    }
+    
+    
     aspect default {
-	// Lion is drawn as a dark circle that is going to be red with age
+	// Cyclist is drawn as a 
 		draw circle(7) color: #black;
 	
 	}
