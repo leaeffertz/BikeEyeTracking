@@ -5,10 +5,13 @@
 * Based on the Simple Traffic Model and the concept of interaction of Luuk's model. 
 * Tags:  
 */
+
 model eyetracking_cycling
 
 global {
-//// initialize environment-data /////////////////////////////////////////////////////////////////////////////
+	
+//// initialize environment-data ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	
 	graph network;
 	 
 	file road_diff_nodes <- file("../includes/difficult_route_osm_nodes.geojson");
@@ -26,7 +29,13 @@ global {
 	list<bool> stress_list <- [];
     list<int> speed_list <- [];
     
-//////// Initialisation ////////////////////////////////////////////////////////////////////////////////////////////////////////////	
+    //default values for parameters
+    int people_nb <- 50;
+    float people_speed <- 10.0;
+    float part_speed <- 10.0;
+    
+//////// Initialisation ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////	
+	
 	init {
 		// Create graph from data for both the easy and difficult route
 		create road from: road_diff_edges{
@@ -44,7 +53,6 @@ global {
 	    with: [elementId::int(read('full_id')), elementHeight::int(read('building_4')), elementColor::string(read('attrForGama'))];
 	    
 	    create road from: road_easy_edges{
-	    
 			// Create another road in the opposite direction
 			create road {
 				num_lanes <- myself.num_lanes;
@@ -69,10 +77,11 @@ global {
 		
 		// create agents
 		create cyclist number: 1 with: (location: one_of(intersection).location);
-		create people number: 50 with: [location::any_location_in(one_of(road))];
+		create people number: people_nb with: [location::any_location_in(one_of(road))];
 	}
 }
-/////// specifiy environment species /////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////// specifiy environment species ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 species intersection skills: [intersection_skill] ;
 
 species road skills: [road_skill] {
@@ -101,23 +110,23 @@ species EasyBuildings{
 	draw shape color: rgb(0,255,0) depth: elementHeight *6;} 
 }	
 
-/////// specify agent species ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////// specify agent species //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 species cyclist skills: [driving] {
-	geometry action_area <- circle(speed) intersection cone(0, 90);
-	geometry perception_area <- circle(speed) intersection cone(0, 214);
-	geometry sight_line <- line([self.location, current_road])intersection circle(speed);
+	geometry action_area <- circle(part_speed) intersection cone(0, 90);
+	geometry perception_area <- circle(part_speed) intersection cone(0, 214);
+	//geometry sight_line <- line([self.location, current_road])intersection circle(speed);
 	float perception_angle;
 	float perception_radius;
 	
-	float speed <- 5.0;
+	// parameters
 	bool stress <- false; //further research needed, GENDER DIFFERENCES!!!, Stressauslöser nur bei seh r nahem Kontakt, bei crash etc, binär
 	
-	// parameters
 	rgb color <- #red;
 	init {
-		vehicle_length <- 1.9 #m;
-		max_speed <- 100 #km / #h;
+		vehicle_length <- 1 #m;
 		max_acceleration <- 3.5;
+		current_lane <- 0;
 	}
 	
 	// routing
@@ -156,11 +165,11 @@ species cyclist skills: [driving] {
     //record parameters to list for each timestep
     reflex report {
     	add stress to: stress_list;
-    	add speed to: speed_list;
+    	add part_speed to: speed_list;
     }
     
     reflex update_actionArea {
-		action_area <- circle(speed + 10) intersection cone(heading - 45, heading + 45);
+		action_area <- circle(part_speed + 10) intersection cone(heading - 45, heading + 45);
 		//? add 
 		perception_area <- circle(30) intersection cone(heading - 20, heading + 20);
 		
@@ -172,17 +181,19 @@ species cyclist skills: [driving] {
     }
     
     action speed_change {
-    	speed <- 4.0;
+    	part_speed <- 4.0;
     }
     
     action change_perception{
     	perception_area <- circle(15) intersection cone(heading - 53, heading + 53);
     }
     
-    action overtake{
-    	current_lane <- 1;
-    	write current_lane;
-    }
+//    action overtake{
+//    	write "before:" + current_lane;
+//    	
+//    	current_lane <- current_lane + 1;
+//    	write "after:" + current_lane;
+//    }
 	
 	// visualisation	
 	aspect default {
@@ -209,7 +220,7 @@ species people skills: [driving] {
 	rgb color <- rnd_color(255);
 	init {
 		vehicle_length <- 1 #m;
-		speed <- 20 #km / #h;
+		max_acceleration <- 3.5;
 	}
 	
 	// routing
@@ -228,11 +239,10 @@ species people skills: [driving] {
 			do action: speed_change;
 			do action: stress_change;
 			do action: change_perception;
-			write "I interacted!";
 		}
-		ask cyclist at_distance (5){
-			do action: overtake;
-		}
+//		ask cyclist at_distance (1){
+//			do action: overtake;
+//		}
 	}
 	
 	// visualisation
@@ -245,6 +255,10 @@ species people skills: [driving] {
 ////////// experiment visualisation ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 experiment difficult type: gui {
+	parameter "Number of traffic participants" var: people_nb category:"Experiment parameters";
+	parameter "Participants' speed" var: part_speed min: 0.0 max: 100.0 step: 0.5 category:"Experiment parameters";
+	parameter "Others' speed" var: people_speed min: 0.0 max: 100.0 step: 0.5 category:"Experiment parameters";
+	
 	output {
 		display map type:opengl{
 			species cyclist;
