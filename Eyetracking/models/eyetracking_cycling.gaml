@@ -5,7 +5,7 @@
 * Based on the Simple Traffic Model and the concept of interaction of Luuk's model. 
 * Tags:  
 */
-model From_GAMA_CRS
+model eyetracking_cycling
 
 global {
 	graph network;
@@ -22,17 +22,37 @@ global {
 	//set the GAMA coordinate reference system using the one of the building_file (Lambert zone II).
 	geometry shape <- envelope(road_diff_edges);
 	
-	list<int> stress_list <- [];
+	list<bool> stress_list <- [];
     list<int> speed_list <- [];
 	
 	init {
-		create road from: road_diff_edges;
-		create intersection from: road_diff_nodes;
+		create road from: road_diff_edges{
+			// Create another road in the opposite direction
+			create road{
+				num_lanes <- myself.num_lanes;
+				shape <- polyline(reverse(myself.shape.points));
+				maxspeed <- myself.maxspeed;
+				linked_road <- myself;
+				myself.linked_road <- self;
+			}
+		}
 		
+		create intersection from: road_diff_nodes;
 		create DifficultBuildings from: difficultbuildings 
 	    with: [elementId::int(read('full_id')), elementHeight::int(read('building_4')), elementColor::string(read('attrForGama'))];
 	    
-	    create road from: road_easy_edges;
+	    create road from: road_easy_edges{
+	    
+			// Create another road in the opposite direction
+			create road {
+				num_lanes <- myself.num_lanes;
+				shape <- polyline(reverse(myself.shape.points));
+				maxspeed <- myself.maxspeed;
+				linked_road <- myself;
+				myself.linked_road <- self;
+			}
+		}
+	    
 		create intersection from: road_easy_nodes;
 		create EasyBuildings from: easybuildings 
 	    with: [elementId::int(read('full_id')), elementHeight::int(read('building_4')), elementColor::string(read('attrForGama'))];
@@ -42,21 +62,26 @@ global {
 		point poi_location_WGS84 <- CRS_transform(poi_location, "EPSG:4326").location; //project the point to WGS84 CRS
 		point poi_location_UTM31N <- CRS_transform(poi_location, "EPSG:32631").location; //project the point to UMT 31N CRS
 		write "POI location - GAMA coordinates: " + poi_location + "\nWGS84: " + poi_location_WGS84 + "\nUTM 31N: " + poi_location_UTM31N;
-		network <- directed(as_edge_graph(road));
+		
+		//network <- directed(as_edge_graph(road));
+		network <- as_driving_graph(road, intersection);
+		
+		create cyclist number: 1 with: (location: one_of(intersection).location);
 
-		create cyclist number: 1 {
+		//create cyclist number: 1 {
 		//with: [location::any_location_in(one_of(road))];
-			target <- any_location_in(one_of(road));
-			location <- any_location_in(one_of(road));
-		}
+			//target <- any_location_in(one_of(road));
+			//location <- any_location_in(one_of(road));
+		//}
 		
 	}
 }
 
 species intersection skills: [intersection_skill] ;
 
-species road {
+species road skills: [road_skill] {
 	int num_lanes <- 2;
+
 	aspect default {
 		draw shape color: #gray border: #black;
 	}
@@ -82,9 +107,29 @@ species EasyBuildings{
 }	
 
 species cyclist skills: [driving] {
+	
 	rgb color <- #red;
-	point target;
-	path my_path;
+	init {
+		vehicle_length <- 1.9 #m;
+		max_speed <- 100 #km / #h;
+		max_acceleration <- 3.5;
+	}
+
+	reflex select_next_path when: current_path = nil {
+		// A path that forms a cycle
+		do compute_path graph: network target: one_of(intersection);
+	}
+	
+	reflex commute when: current_path != nil {
+		do drive;
+	}
+	aspect base {
+		draw triangle(5.0) color: color rotate: heading + 90 border: #black;
+	}
+	
+	
+	//point target;
+	//path my_path;
 	
 	geometry action_area <- circle(speed) intersection cone(0, 90);
 	geometry perception_area <- circle(speed) intersection cone(0, 214);
@@ -95,16 +140,16 @@ species cyclist skills: [driving] {
 	float speed <- 5.0;
 	bool stress <- false; //further research needed, GENDER DIFFERENCES!!!, Stressauslöser nur bei seh r nahem Kontakt, bei crash etc, binär
 
-	reflex move {
+	//reflex move {
 	//The operator goto is a built-in operator derivated from the moving skill, moving the agent from its location to its target, 
 	//   restricted by the on variable, with the speed and returning the path followed
-		my_path <- goto(on: network, target: target, speed: 10.0, return_path: true);
+		//my_path <- goto(on: network, target: target, speed: 10.0, return_path: true);
 		
 		//If the agent arrived to its target location, then it choose randomly an other target on the road
-		if (target = location) {
-			target <- target + 0.009;//any_location_in(one_of (road)) ;
-			write "target is" + target;	
-		} 
+		//if (target = location) {
+			//target <- target + 0.009;//any_location_in(one_of (road)) ;
+			//write "target is" + target;	
+		//} 
 		
 	
 	//Scenario A: There are no other traffic participants in the area, that affect the cyclist
@@ -112,7 +157,7 @@ species cyclist skills: [driving] {
 	//Scenario B: There is another traffic participant or obsatcle in the perception area of the cyclist.
 		
 		
-	}
+	//}
 		
 	action stress_change{
     	stress <- true;
@@ -148,7 +193,7 @@ species cyclist skills: [driving] {
 	}
 		
 	aspect default {
-		draw circle(5.0) color: color border: #black;
+		draw circle(5.0) color: color rotate: heading + 90 border: #black;
 	}
 	
 	aspect action_area {
@@ -166,16 +211,35 @@ species cyclist skills: [driving] {
 
 }
 
-species people skills: [moving] {
+species people skills: [driving] {
 	rgb color <- rnd_color(255);
+	
+	init {
+		vehicle_length <- 1 #m;
+		max_speed <- 20 #km / #h;
+		
+	}
+
+	reflex select_next_path when: current_path = nil {
+		// A path that forms a cycle
+		do compute_path graph: network target: one_of(intersection);
+	}
+	
+	reflex commute when: current_path != nil {
+		do drive;
+	}
+	aspect base {
+		draw triangle(5.0) color: color rotate: heading + 90 border: #black;
+	}
+	
 
 	aspect default {
-		draw circle(1.0) color: color border: #black;
+		draw triangle(5.0) color: color rotate: heading + 90 border: #black;
 	}
 
-	reflex move {
-		do wander on: network;
-	}
+	//reflex move {
+		//do wander on: network;
+	//}
 	
 	reflex stress_participant{
 		ask cyclist at_distance (30){
