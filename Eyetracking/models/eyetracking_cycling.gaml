@@ -2,27 +2,48 @@
 * Name: Eyetracking bicycle interactions
 * Author: Florian Winkler, Martin Moser, Lea Effertz
 * Description: A model which shows how the interactions with other traffic participants affect a cyclists perception area, point of view and stress level.
+* Based on the Simple Traffic Model and the concept of interaction of Luuk's model. 
 * Tags:  
 */
 model From_GAMA_CRS
 
 global {
 	graph network;
-	file road_file <- shape_file("../includes/Cleaned_shp_easy_Me_Dissolve.shp");
-	geometry shape <- envelope(road_file); //set the GAMA coordinate reference system using the one of the building_file (Lambert zone II).
+	 
+	
+	file road_diff_nodes <- file("../includes/difficult_route_osm_nodes.geojson");
+	file road_diff_edges <- file("../includes/difficult_route_osm_edges.geojson");
+	file difficultbuildings <- file("../includes/difficult_4326.geojson");
+	
+	file road_easy_nodes <- file("../includes/easy_route_osm_nodes.geojson");
+	file road_easy_edges <- file("../includes/easy_route_osm_edges.geojson");
+	file easybuildings <- file('../includes/easy_4326.geojson');
+	
+	//set the GAMA coordinate reference system using the one of the building_file (Lambert zone II).
+	geometry shape <- envelope(road_diff_edges);
 	
 	list<int> stress_list <- [];
     list<int> speed_list <- [];
 	
 	init {
-		create road from: road_file;
+		create road from: road_diff_edges;
+		create intersection from: road_diff_nodes;
+		
+		create DifficultBuildings from: difficultbuildings 
+	    with: [elementId::int(read('full_id')), elementHeight::int(read('building_4')), elementColor::string(read('attrForGama'))];
+	    
+	    create road from: road_easy_edges;
+		create intersection from: road_easy_nodes;
+		create EasyBuildings from: easybuildings 
+	    with: [elementId::int(read('full_id')), elementHeight::int(read('building_4')), elementColor::string(read('attrForGama'))];
+	    
 		point poi_location <- first(road).location; //location of the first building in the GAMA reference system
 		create people number: 50 with: [location::any_location_in(one_of(road))];
 		point poi_location_WGS84 <- CRS_transform(poi_location, "EPSG:4326").location; //project the point to WGS84 CRS
 		point poi_location_UTM31N <- CRS_transform(poi_location, "EPSG:32631").location; //project the point to UMT 31N CRS
 		write "POI location - GAMA coordinates: " + poi_location + "\nWGS84: " + poi_location_WGS84 + "\nUTM 31N: " + poi_location_UTM31N;
 		network <- directed(as_edge_graph(road));
-		
+
 		create cyclist number: 1 {
 		//with: [location::any_location_in(one_of(road))];
 			target <- any_location_in(one_of(road));
@@ -31,6 +52,34 @@ global {
 		
 	}
 }
+
+species intersection skills: [intersection_skill] ;
+
+species road {
+	int num_lanes <- 2;
+	aspect default {
+		draw shape color: #gray border: #black;
+	}
+
+}
+
+species DifficultBuildings{
+    int elementId;
+    int elementHeight;
+    string elementColor;
+	
+    aspect basic{
+	draw shape color: rgb(255,0,0) depth: elementHeight *6;} 
+}
+
+species EasyBuildings{
+    int elementId;
+    int elementHeight;
+    string elementColor;
+	
+    aspect basic{
+	draw shape color: rgb(0,255,0) depth: elementHeight *6;} 
+}	
 
 species cyclist skills: [driving] {
 	rgb color <- #red;
@@ -53,7 +102,7 @@ species cyclist skills: [driving] {
 		
 		//If the agent arrived to its target location, then it choose randomly an other target on the road
 		if (target = location) {
-			target <- target +0.009;//any_location_in(one_of (road)) ;
+			target <- target + 0.009;//any_location_in(one_of (road)) ;
 			write "target is" + target;	
 		} 
 		
@@ -142,23 +191,32 @@ species people skills: [moving] {
 
 }
 
-species road {
-	int num_lanes <- 2;
-	aspect default {
-		draw shape color: #gray border: #black;
-	}
-
-}
-
-experiment Start type: gui {
+experiment difficult type: gui {
 	output {
-		display map {
+		display map type:opengl{
 			species cyclist;
 	   		species cyclist aspect:action_area transparency: 0.5;
 	   		species cyclist aspect:perception_area transparency: 0.5;
 	   		//species cyclist aspect: sight_line;
 			species road;
 			species people;
+			species DifficultBuildings aspect: basic;
+		}
+
+	}
+
+}
+
+experiment easy type: gui {
+	output {
+		display map type:opengl{
+			species cyclist;
+	   		species cyclist aspect:action_area transparency: 0.5;
+	   		species cyclist aspect:perception_area transparency: 0.5;
+	   		//species cyclist aspect: sight_line;
+			species road;
+			species people;
+			species EasyBuildings aspect: basic ; 
 		}
 
 	}
