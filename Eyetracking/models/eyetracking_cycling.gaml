@@ -8,9 +8,9 @@
 model eyetracking_cycling
 
 global {
+//// initialize environment-data /////////////////////////////////////////////////////////////////////////////
 	graph network;
 	 
-	
 	file road_diff_nodes <- file("../includes/difficult_route_osm_nodes.geojson");
 	file road_diff_edges <- file("../includes/difficult_route_osm_edges.geojson");
 	file difficultbuildings <- file("../includes/difficult_4326.geojson");
@@ -22,10 +22,13 @@ global {
 	//set the GAMA coordinate reference system using the one of the building_file (Lambert zone II).
 	geometry shape <- envelope(road_diff_edges);
 	
+	//initialize list to track the participants' parameters
 	list<bool> stress_list <- [];
     list<int> speed_list <- [];
-	
+    
+//////// Initialisation ////////////////////////////////////////////////////////////////////////////////////////////////////////////	
 	init {
+		// Create graph from data for both the easy and difficult route
 		create road from: road_diff_edges{
 			// Create another road in the opposite direction
 			create road{
@@ -36,7 +39,6 @@ global {
 				myself.linked_road <- self;
 			}
 		}
-		
 		create intersection from: road_diff_nodes;
 		create DifficultBuildings from: difficultbuildings 
 	    with: [elementId::int(read('full_id')), elementHeight::int(read('building_4')), elementColor::string(read('attrForGama'))];
@@ -57,26 +59,20 @@ global {
 		create EasyBuildings from: easybuildings 
 	    with: [elementId::int(read('full_id')), elementHeight::int(read('building_4')), elementColor::string(read('attrForGama'))];
 	    
+	    network <- as_driving_graph(road, intersection);
+	    
+	    // transform coordinate system
 		point poi_location <- first(road).location; //location of the first building in the GAMA reference system
-		create people number: 50 with: [location::any_location_in(one_of(road))];
 		point poi_location_WGS84 <- CRS_transform(poi_location, "EPSG:4326").location; //project the point to WGS84 CRS
 		point poi_location_UTM31N <- CRS_transform(poi_location, "EPSG:32631").location; //project the point to UMT 31N CRS
 		write "POI location - GAMA coordinates: " + poi_location + "\nWGS84: " + poi_location_WGS84 + "\nUTM 31N: " + poi_location_UTM31N;
 		
-		//network <- directed(as_edge_graph(road));
-		network <- as_driving_graph(road, intersection);
-		
+		// create agents
 		create cyclist number: 1 with: (location: one_of(intersection).location);
-
-		//create cyclist number: 1 {
-		//with: [location::any_location_in(one_of(road))];
-			//target <- any_location_in(one_of(road));
-			//location <- any_location_in(one_of(road));
-		//}
-		
+		create people number: 50 with: [location::any_location_in(one_of(road))];
 	}
 }
-
+/////// specifiy environment species /////////////////////////////////////////////////////////////////////////////////////////////////////////
 species intersection skills: [intersection_skill] ;
 
 species road skills: [road_skill] {
@@ -85,7 +81,6 @@ species road skills: [road_skill] {
 	aspect default {
 		draw shape color: #gray border: #black;
 	}
-
 }
 
 species DifficultBuildings{
@@ -106,15 +101,26 @@ species EasyBuildings{
 	draw shape color: rgb(0,255,0) depth: elementHeight *6;} 
 }	
 
+/////// specify agent species ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 species cyclist skills: [driving] {
+	geometry action_area <- circle(speed) intersection cone(0, 90);
+	geometry perception_area <- circle(speed) intersection cone(0, 214);
+	geometry sight_line <- line([self.location, current_road])intersection circle(speed);
+	float perception_angle;
+	float perception_radius;
 	
+	float speed <- 5.0;
+	bool stress <- false; //further research needed, GENDER DIFFERENCES!!!, Stressauslöser nur bei seh r nahem Kontakt, bei crash etc, binär
+	
+	// parameters
 	rgb color <- #red;
 	init {
 		vehicle_length <- 1.9 #m;
 		max_speed <- 100 #km / #h;
 		max_acceleration <- 3.5;
 	}
-
+	
+	// routing
 	reflex select_next_path when: current_path = nil {
 		// A path that forms a cycle
 		do compute_path graph: network target: one_of(intersection);
@@ -127,18 +133,6 @@ species cyclist skills: [driving] {
 		draw triangle(5.0) color: color rotate: heading + 90 border: #black;
 	}
 	
-	
-	//point target;
-	//path my_path;
-	
-	geometry action_area <- circle(speed) intersection cone(0, 90);
-	geometry perception_area <- circle(speed) intersection cone(0, 214);
-	geometry sight_line <- line([self.location, current_road])intersection circle(speed);
-	float perception_angle;
-	float perception_radius;
-	
-	float speed <- 5.0;
-	bool stress <- false; //further research needed, GENDER DIFFERENCES!!!, Stressauslöser nur bei seh r nahem Kontakt, bei crash etc, binär
 
 	//reflex move {
 	//The operator goto is a built-in operator derivated from the moving skill, moving the agent from its location to its target, 
@@ -158,7 +152,21 @@ species cyclist skills: [driving] {
 		
 		
 	//}
+    
+    //record parameters to list for each timestep
+    reflex report {
+    	add stress to: stress_list;
+    	add speed to: speed_list;
+    }
+    
+    reflex update_actionArea {
+		action_area <- circle(speed + 10) intersection cone(heading - 45, heading + 45);
+		//? add 
+		perception_area <- circle(30) intersection cone(heading - 20, heading + 20);
 		
+		//sight_line <- line([self.location, current_road])intersection circle(speed + 20);
+	}
+	
 	action stress_change{
     	stress <- true;
     }
@@ -175,23 +183,8 @@ species cyclist skills: [driving] {
     	current_lane <- 1;
     	write current_lane;
     }
-    
-    
-    reflex report {
-    	add stress to: stress_list;
-    	//write "stress: " + stress_list;
-    	add speed to: speed_list;
-    	//write "speed: " + speed_list;
-    }
-    
-    reflex update_actionArea {
-		action_area <- circle(speed + 10) intersection cone(heading - 45, heading + 45);
-		//? add 
-		perception_area <- circle(30) intersection cone(heading - 20, heading + 20);
-		
-		sight_line <- line([self.location, current_road])intersection circle(speed + 20);
-	}
-		
+	
+	// visualisation	
 	aspect default {
 		draw circle(5.0) color: color rotate: heading + 90 border: #black;
 	}
@@ -204,43 +197,32 @@ species cyclist skills: [driving] {
 		draw self.perception_area color: #goldenrod;
 	}
 	
-	aspect sight_line {
-		draw self.sight_line color: #blue ;
-	}
+//	aspect sight_line {
+//		draw self.sight_line color: #blue ;
+//	}
 		
 
 }
 
 species people skills: [driving] {
+	// parameters
 	rgb color <- rnd_color(255);
-	
 	init {
 		vehicle_length <- 1 #m;
-		max_speed <- 20 #km / #h;
-		
+		speed <- 20 #km / #h;
 	}
-
+	
+	// routing
 	reflex select_next_path when: current_path = nil {
 		// A path that forms a cycle
 		do compute_path graph: network target: one_of(intersection);
 	}
-	
 	reflex commute when: current_path != nil {
 		do drive;
 	}
-	aspect base {
-		draw triangle(5.0) color: color rotate: heading + 90 border: #black;
-	}
-	
 
-	aspect default {
-		draw triangle(5.0) color: color rotate: heading + 90 border: #black;
-	}
 
-	//reflex move {
-		//do wander on: network;
-	//}
-	
+	// cause stress to the participant
 	reflex stress_participant{
 		ask cyclist at_distance (30){
 			do action: speed_change;
@@ -252,8 +234,15 @@ species people skills: [driving] {
 			do action: overtake;
 		}
 	}
+	
+	// visualisation
+	aspect default {
+		draw triangle(5.0) color: color rotate: heading + 90 border: #black;
+	}
 
 }
+
+////////// experiment visualisation ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 experiment difficult type: gui {
 	output {
