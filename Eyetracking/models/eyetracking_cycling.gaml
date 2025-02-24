@@ -28,11 +28,14 @@ global {
 	//initialize list to track the participants' parameters
 	list<bool> stress_list <- [];
     list<int> speed_list <- [];
+    list<float> heart_rate_list <- [];
     
     //default values for parameters
     int people_nb <- 50;
     float people_speed <- 10.0;
     float part_speed <- 10.0;
+    
+    list<int> traffic_count <- [];
     
 //////// Initialisation ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////	
 	
@@ -113,16 +116,24 @@ species EasyBuildings{
 /////// specify agent species //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 species cyclist skills: [driving] {
-	geometry action_area <- circle(part_speed) intersection cone(0, 90);
+	//geometry action_area <- circle(part_speed) intersection cone(0, 90);
 	geometry perception_area <- circle(part_speed) intersection cone(0, 214);
 	//geometry sight_line <- line([self.location, current_road])intersection circle(speed);
-	float perception_angle;
-	float perception_radius;
 	
-	// parameters
+	//float perception_angle;
+	//float perception_radius;
+	
+	// default parameters
 	bool stress <- false; //further research needed, GENDER DIFFERENCES!!!, Stressauslöser nur bei seh r nahem Kontakt, bei crash etc, binär
-	
-	rgb color <- #red;
+	float heart_rate <- 65.0;
+	float default_speed <- part_speed;
+    float default_heart_rate <- heart_rate;
+    int alert_duration <- 5;
+    int time_since_alert <- 0;
+    bool careful <- false;
+    
+    rgb color <- #red;
+
 	init {
 		vehicle_length <- 1 #m;
 		max_acceleration <- 3.5;
@@ -134,10 +145,46 @@ species cyclist skills: [driving] {
 		// A path that forms a cycle
 		do compute_path graph: network target: one_of(intersection);
 	}
-	
+	//Scenario A: There are no other traffic participants in the area, that affect the cyclist: 
+	//the participants vitals are not affected and stay the default values
 	reflex commute when: current_path != nil {
 		do drive;
 	}
+	//Scenario B: There is another traffic participant or obsatcle in the perception area of the cyclist:
+	// the cyclist is now alerted and the vitals change depending on the number of other people in the perception area of the participant.
+	reflex update {
+        //count traffic in perception area
+        int nearby_count <- length(traffic_count);
+        write nearby_count;
+        if (nearby_count > 0){
+            // set default values if there arent other traffic participants
+            if (!careful){
+                default_speed <- part_speed;
+                default_heart_rate <- heart_rate;
+                careful <- true;
+                time_since_alert <- 0;
+               	traffic_count <- [];
+            }
+            //adjust parameters if there is other traffic
+            part_speed <- default_speed * max(0.28, 1 - 0.1 * nearby_count);
+            heart_rate <- default_heart_rate * (1 + 0.05 * nearby_count);
+            stress <- true;
+            traffic_count <- [];
+        }else{
+            // no other traffic detected, results in reverting the paramters if the duration is reached
+            if (careful) {
+                time_since_alert <- time_since_alert + 1;
+                if (time_since_alert >= alert_duration){
+                    part_speed <- default_speed;
+                    heart_rate <- default_heart_rate;
+                    stress <- false;
+                    careful <- false;
+                    traffic_count <- [];
+                }
+            }
+        }
+    }
+	
 	aspect base {
 		draw triangle(5.0) color: color rotate: heading + 90 border: #black;
 	}
@@ -153,36 +200,38 @@ species cyclist skills: [driving] {
 			//target <- target + 0.009;//any_location_in(one_of (road)) ;
 			//write "target is" + target;	
 		//} 
-		
-	
-	//Scenario A: There are no other traffic participants in the area, that affect the cyclist
-	
-	//Scenario B: There is another traffic participant or obsatcle in the perception area of the cyclist.
-		
-		
 	//}
     
     //record parameters to list for each timestep
     reflex report {
     	add stress to: stress_list;
     	add part_speed to: speed_list;
+    	add heart_rate to: heart_rate_list;
+    	write "stress: " + stress_list;
+    	write "speed: "+ speed_list;
+    	write "heart_rate: " + heart_rate_list;
+    	write "number of people: " + traffic_count;
     }
     
     reflex update_actionArea {
-		action_area <- circle(part_speed + 10) intersection cone(heading - 45, heading + 45);
+		//action_area <- circle(part_speed + 10) intersection cone(heading - 45, heading + 45);
 		//? add 
 		perception_area <- circle(30) intersection cone(heading - 20, heading + 20);
 		
 		//sight_line <- line([self.location, current_road])intersection circle(speed + 20);
 	}
 	
-	action stress_change{
-    	stress <- true;
-    }
-    
-    action speed_change {
-    	part_speed <- 4.0;
-    }
+//	action heart_change{
+//		heart_rate <- heart_rate * 1.2;
+//	}
+//	
+//	action stress_change{
+//    	stress <- true;
+//    }
+//    
+//    action speed_change {
+//    	part_speed <- part_speed * 0.5;
+//    }
     
     action change_perception{
     	perception_area <- circle(15) intersection cone(heading - 53, heading + 53);
@@ -220,7 +269,8 @@ species people skills: [driving] {
 	rgb color <- rnd_color(255);
 	init {
 		vehicle_length <- 1 #m;
-		max_acceleration <- 3.5;
+		max_acceleration <- 0.71;
+		right_side_driving <- true;
 	}
 	
 	// routing
@@ -236,9 +286,10 @@ species people skills: [driving] {
 	// cause stress to the participant
 	reflex stress_participant{
 		ask cyclist at_distance (30){
-			do action: speed_change;
-			do action: stress_change;
+//			do action: speed_change;
+//			do action: stress_change;
 			do action: change_perception;
+			add 1 to: traffic_count;
 		}
 //		ask cyclist at_distance (1){
 //			do action: overtake;
