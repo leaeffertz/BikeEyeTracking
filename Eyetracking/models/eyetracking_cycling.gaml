@@ -82,7 +82,24 @@ global {
 }
 /////// specifiy environment species ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-species intersection skills: [intersection_skill] ;
+//species intersection skills: [intersection_skill] ;
+
+species intersection skills: [intersection_skill] {
+	bool is_traffic_signal;
+	int street_count;
+	string highway;
+	
+	reflex intersection_close{
+		ask cyclist at_distance (5){
+			write "Cyclist if 5 meters from next intersection!";
+			do action: stop_at_intersection;
+			//do action: change_perception;
+			//write "I interacted close to an intersection!";
+			//do action: stop_at_intersection;
+		}
+	}
+		
+	}
 
 species road skills: [road_skill] {
 	int num_lanes <- 2;
@@ -182,6 +199,12 @@ species cyclist skills: [driving] {
     
     action speed_change {
     	part_speed <- 4.0;
+    }
+    
+    action stop_at_intersection{
+    	speed <- 0.0;
+    	write "Stopped";
+    	//do stop;
     }
     
     action change_perception{
