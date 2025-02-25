@@ -13,7 +13,7 @@ global {
 //// initialize environment-data ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
 	graph network;
-	 
+	
 	file road_diff_nodes <- file("../includes/difficult_route_osm_nodes.geojson");
 	file road_diff_edges <- file("../includes/difficult_route_osm_edges.geojson");
 	file difficultbuildings <- file("../includes/difficult_4326.geojson");
@@ -33,7 +33,9 @@ global {
     int people_nb <- 50;
     float people_speed <- 10.0;
     float part_speed <- 10.0;
-    
+    float average;
+    float summe;
+    float count;
 //////// Initialisation ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////	
 	
 	init {
@@ -86,7 +88,7 @@ species intersection skills: [intersection_skill] ;
 
 species road skills: [road_skill] {
 	int num_lanes <- 2;
-
+	
 	aspect default {
 		draw shape color: #gray border: #black;
 	}
@@ -133,6 +135,11 @@ species cyclist skills: [driving] {
 	reflex select_next_path when: current_path = nil {
 		// A path that forms a cycle
 		do compute_path graph: network target: one_of(intersection);
+		write speed_list;
+		average <- mean(speed_list);
+		summe <- sum(speed_list);
+		count <- length(speed_list); // var0 equals 5 
+		write "COUNT" + count;
 	}
 	
 	reflex commute when: current_path != nil {
@@ -260,6 +267,7 @@ experiment difficult type: gui {
 	parameter "Others' speed" var: people_speed min: 0.0 max: 100.0 step: 0.5 category:"Experiment parameters";
 	
 	output {
+		layout #split;
 		display map type:opengl{
 			species cyclist;
 	   		species cyclist aspect:action_area transparency: 0.5;
@@ -269,12 +277,24 @@ experiment difficult type: gui {
 			species people;
 			species DifficultBuildings aspect: basic;
 		}
-
+		display map_3D background: #white {
+			chart "biomass" type: series {
+				data "Speed" value: average color: #green;
+				data "sum" value: summe color: #red;
+				data "Count" value: count color: #yellow;
+				}
+		
+	}
+		
 	}
 
 }
 
 experiment easy type: gui {
+	parameter "Number of traffic participants" var: people_nb category:"Experiment parameters";
+	parameter "Participants' speed" var: part_speed min: 0.0 max: 100.0 step: 0.5 category:"Experiment parameters";
+	parameter "Others' speed" var: people_speed min: 0.0 max: 100.0 step: 0.5 category:"Experiment parameters";
+	
 	output {
 		display map type:opengl{
 			species cyclist;
