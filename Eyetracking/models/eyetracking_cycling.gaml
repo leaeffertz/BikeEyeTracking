@@ -426,7 +426,7 @@ species cyclist skills: [driving] {
 					add stressindicator to: stresscount;
 				}
 		
-		write "people_bn is " + people_nb;
+		
     	write "stress: " + stress_list;
     	write "speed: "+ speed_list;
     	write "heart_rate: " + heart_rate_list;
