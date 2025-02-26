@@ -38,7 +38,7 @@ global {
     float people_speed <- 10.0;
     float part_speed <- 10.0;
     float stress;
-    float heart_rate <- 6.5;
+    float heart_rate <- 120;
     int stressindicator;
     list<int> traffic_count <- [];
     int alert_duration <-5;
@@ -437,7 +437,7 @@ species cyclist skills: [driving] {
     	write "heart_rate: " + heart_rate_list;
     }
     
-    // updtae perception area
+    // update perception area
     reflex update_actionArea {
 		perception_area <- circle(30) intersection cone(heading - 20, heading + 20);	
 	}
@@ -511,16 +511,19 @@ experiment difficult type: gui {
 			//species polygon_areas aspect: default;
 		}
 		// show the recorded vitals of the participant in charts
-		display map_3D background: #white {
-			chart "Participants' vitals" type: series {
+		display vitals background: #white {
+			chart "Participants' stress and speed" type: series {
 				data "Stress" value: stressindicator color: #red;
 				data "Participants' speed" value: part_speed color: #green;
-				data "Heart rate" value: heart_rate color: #orange;
-				data "average heart rate" value: mean(heart_rate_list) color: #blue;
 				//data "Stresscount" value: length(stresscount) color: #blue;
 				//data "Timeduration" value: time_since_alert color: #blue;
 				}
-		
+		}
+		display heart background: #white {
+			chart "Particpants heart-rate in BPM" type: series{
+				data "Heart rate" value: heart_rate color: #orange;
+				data "average heart rate" value: mean(heart_rate_list) color: #blue;
+			}
 		}
 	
 
@@ -544,16 +547,19 @@ experiment easy type: gui {
 		}
 		// show the recorded vitals of the participant in charts
 		display map_3D background: #white {
-			chart "Participants' vitals" type: series {
+			chart "Participants' stress and speed" type: series {
 				data "Stress" value: stressindicator color: #red;
 				data "Participants' speed" value: part_speed color: #green;
-				data "Heart rate" value: heart_rate color: #orange;
-				data "average heart rate" value: mean(heart_rate_list) color: #blue;
 				//data "Stresscount" value: length(stresscount) color: #blue;
 				//data "Timeduration" value: time_since_alert color: #blue;
-				}
-		
-	}
+				}	
+		}
+		display heart background: #white {
+			chart "Particpants heart-rate in BPM" type: series{
+				data "Heart rate" value: heart_rate color: #orange;
+				data "average heart rate" value: mean(heart_rate_list) color: #blue;
+			}
+		}
 
 	}
 
