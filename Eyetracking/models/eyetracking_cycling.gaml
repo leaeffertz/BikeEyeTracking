@@ -1,17 +1,9 @@
 /**
-* Name: Eyetrackingfinal
-* Based on the internal empty template. 
-* Author: flori
-* Tags: 
-*/
-
-
-/**
 * Name: Eyetracking bicycle interactions
 * Author: Florian Winkler, Martin Moser, Lea Effertz
 * Description: A model which shows how the interactions with other traffic participants affect a cyclists perception area, point of view and stress level.
 * Based on the Simple Traffic Model and the concept of interaction of Luuk's model. 
-* Tags:  
+* Tags:  cycling, eyetracking, traffic simulation, stress simulation
 */
 
 model eyetracking_cycling
@@ -92,6 +84,7 @@ global {
 		// "pixel_y_avg": 395.68266666666671, "azimuth_deg_x": 3.1942935386677971, "azimuth_deg_y": 3.1942935386677971, 
 		// "other_road_users_cnt": 175, "other_motor_traffic_cnt": 138, "traffic_sign_cnt": 50
 		
+		//initialize intersections
 		list<geometry> all_difficult_intersections <- road_diff_nodes.contents;
 		write "all_difficult_intersections " + length(all_difficult_intersections);
 		list<geometry> all_easy_intersections <- road_easy_nodes.contents;
@@ -190,7 +183,7 @@ global {
 }
 /////// specifiy environment species ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
+// initialize intersections and specify behavior
 species intersection skills: [intersection_skill] {
 	bool is_traffic_signal;
 	int street_count;
@@ -213,6 +206,7 @@ species intersection skills: [intersection_skill] {
 		
 }
 
+//create road species and specify behaviour
 species road skills: [road_skill] {
 	int num_lanes <- 2;
 	float MOS_score_mean;
@@ -239,7 +233,7 @@ species road skills: [road_skill] {
 //	aspect base {
 //		draw shape color: color border: #black;
 //	}
-
+	// define grpahic representation of the road
 	aspect default {
 		draw shape color: #gray border: #black;
 	}
@@ -295,13 +289,14 @@ species polygon_areas {
 /////// specify agent species //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 species cyclist skills: [driving] {
+	//specify default perception area 
 	geometry perception_area <- circle(part_speed) intersection cone(0, 214);
 	
 	//float perception_angle;
 	//float perception_radius;
 	
 	// default parameters
-	bool stress <- false; //further research needed, GENDER DIFFERENCES!!!, Stressauslöser nur bei seh r nahem Kontakt, bei crash etc, binär
+	bool stress <- false; //stress was chosen as boolean, since exact values are hard to quantify (due to gender and personal differences in participants)
 	//float heart_rate <- 65.0;
 	float default_speed <- part_speed;
     float default_heart_rate <- heart_rate;
@@ -322,8 +317,9 @@ species cyclist skills: [driving] {
 		// A path that forms a cycle
 		do compute_path graph: network target: one_of(intersection);
 	}
+	
 	//Scenario A: There are no other traffic participants in the area, that affect the cyclist: 
-	//the participants vitals are not affected and stay the default values
+	//the participants vitals are not affected and stay the default values and the person is relaxed and thereby not careful.
 	reflex commute when: current_path != nil {
 		do drive;
 	}
@@ -334,12 +330,13 @@ species cyclist skills: [driving] {
     	write "Stopped";
     	//do stop;
     }
+    
 	//Scenario B: There is another traffic participant or obsatcle in the perception area of the cyclist:
-	// the cyclist is now alerted and the vitals change depending on the number of other people in the perception area of the participant.
+	// the cyclist is now alerted and thereby careful and the vitals change depending on the number of 
+	// other people in the perception area of the participant.
 	reflex update {
         //count traffic in perception area
         int nearby_count <- length(traffic_count);
-        
         write "There are " + nearby_count + " other traffic participants nearby.";
         
         if (nearby_count > 0){
@@ -349,15 +346,15 @@ species cyclist skills: [driving] {
                 default_heart_rate <- heart_rate;
                 careful <- true;
                 time_since_alert <- 0;
-               	//traffic_count <- [];
+               	traffic_count <- [];
             }
             //adjust parameters if there is other traffic
             part_speed <- default_speed * max(0.28, 1 - 0.1 * nearby_count);
             heart_rate <- default_heart_rate * (1 + 0.05 * nearby_count);
             stress <- true;
-            //traffic_count <- [];
+            traffic_count <- [];
         }else{
-            // no other traffic detected, results in reverting the paramters if the duration is reached
+            // no other traffic detected results in reverting the paramters after duration
             if (careful) {
                 time_since_alert <- time_since_alert + 1;
                 if (time_since_alert >= alert_duration){
@@ -365,16 +362,16 @@ species cyclist skills: [driving] {
                     heart_rate <- default_heart_rate;
                     stress <- false;
                     careful <- false;
-                    //traffic_count <- [];
+                    traffic_count <- [];
                 }
             }
         }
     }
     
     
-	action update_perception_area {
-		perception_area <- circle(part_speed) intersection cone(0, 300);
-	}
+//	action update_perception_area {
+//		perception_area <- circle(part_speed) intersection cone(0, 300);
+//	}
     
     
 //	action update_perception_area (float rad <- nil, float ang <- nil) {
@@ -434,30 +431,25 @@ species cyclist skills: [driving] {
 					stressindicator <- 6;
 					add stressindicator to: stresscount;
 				}
-		
-		
+		// inform the user about the values measured.
     	write "stress: " + stress_list;
     	write "speed: "+ speed_list;
     	write "heart_rate: " + heart_rate_list;
-    	write "number of people: " + traffic_count;
     }
     
-    
+    // updtae perception area
     reflex update_actionArea {
 		perception_area <- circle(30) intersection cone(heading - 20, heading + 20);	
 	}
     
+    //change perception area at intersections or in close proximity to other cyclists
     action change_perception{
     	perception_area <- circle(15) intersection cone(heading - 41.7, heading + 41.7);
     }
 	
-	// visualisation	
+	// visualisation of the agents and the participants perception area.
 	aspect default {
 		draw circle(5.0) color: color rotate: heading + 90 border: #black;
-	}
-	
-	aspect action_area {
-		draw self.action_area color: #grey;
 	}
 	
 	aspect perception_area {
@@ -467,6 +459,7 @@ species cyclist skills: [driving] {
 
 }
 
+// specify other people on the road
 species people skills: [driving] {
 	// parameters
 	rgb color <- rnd_color(255);
@@ -484,15 +477,12 @@ species people skills: [driving] {
 	reflex commute when: current_path != nil {
 		do drive;
 	}
-	
-
-
 
 	// cause stress to the participant
 	reflex stress_participant{
 		ask cyclist at_distance (40){
 			do action: change_perception;
-			//add 1 to: traffic_count;
+			add 1 to: traffic_count;
 		}
 	}
 	
@@ -506,6 +496,7 @@ species people skills: [driving] {
 ////////// experiment visualisation ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 experiment difficult type: gui {
+	//Parameters that can be changed by the user for different experiments
 	parameter "Number of traffic participants" var: people_nb category:"Experiment parameters";
 	parameter "Participants' speed" var: part_speed min: 0.0 max: 100.0 step: 0.5 category:"Experiment parameters";
 	parameter "Others' speed" var: people_speed min: 0.0 max: 100.0 step: 0.5 category:"Experiment parameters";
@@ -513,25 +504,24 @@ experiment difficult type: gui {
 	output {
 		display map type:opengl{
 			species cyclist;
-	   		species cyclist aspect:action_area transparency: 0.5;
 	   		species cyclist aspect:perception_area transparency: 0.5;
-	   		//species cyclist aspect: sight_line;
 			species road;
 			species people;
 			species DifficultBuildings aspect: basic;
 			//species polygon_areas aspect: default;
 		}
+		// show the recorded vitals of the participant in charts
 		display map_3D background: #white {
-			chart "biomass" type: series {
+			chart "Participants' vitals" type: series {
 				data "Stress" value: stressindicator color: #red;
-				data "Part_speed" value: part_speed color: #green;
-				data "Heart_rate" value: heart_rate color: #orange;
-				data "Heart_rate_avg" value: mean(heart_rate_list) color: #blue;
+				data "Participants' speed" value: part_speed color: #green;
+				data "Heart rate" value: heart_rate color: #orange;
+				data "average heart rate" value: mean(heart_rate_list) color: #blue;
 				//data "Stresscount" value: length(stresscount) color: #blue;
 				//data "Timeduration" value: time_since_alert color: #blue;
 				}
 		
-	}
+		}
 	
 
 	}
@@ -539,23 +529,26 @@ experiment difficult type: gui {
 }
 
 experiment easy type: gui {
+	//Parameters that can be changed by the user for different experiments
+	parameter "Number of traffic participants" var: people_nb category:"Experiment parameters";
+	parameter "Participants' speed" var: part_speed min: 0.0 max: 100.0 step: 0.5 category:"Experiment parameters";
+	parameter "Others' speed" var: people_speed min: 0.0 max: 100.0 step: 0.5 category:"Experiment parameters";
 	output {
 		display map type:opengl{
 			species cyclist;
-	   		species cyclist aspect:action_area transparency: 0.5;
 	   		species cyclist aspect:perception_area transparency: 0.5;
-	   		//species cyclist aspect: sight_line;
 			species road;
 			species people;
 			species EasyBuildings aspect: basic ; 
 			//species polygon_areas aspect: default;
 		}
+		// show the recorded vitals of the participant in charts
 		display map_3D background: #white {
-			chart "biomass" type: series {
+			chart "Participants' vitals" type: series {
 				data "Stress" value: stressindicator color: #red;
-				data "Part_speed" value: part_speed color: #green;
-				data "Heart_rate" value: heart_rate color: #orange;
-				data "Heart_rate_avg" value: mean(heart_rate_list) color: #blue;
+				data "Participants' speed" value: part_speed color: #green;
+				data "Heart rate" value: heart_rate color: #orange;
+				data "average heart rate" value: mean(heart_rate_list) color: #blue;
 				//data "Stresscount" value: length(stresscount) color: #blue;
 				//data "Timeduration" value: time_since_alert color: #blue;
 				}
@@ -566,5 +559,4 @@ experiment easy type: gui {
 
 }
 
-/* Insert your model definition here */
 
