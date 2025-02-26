@@ -1,4 +1,12 @@
 /**
+* Name: Eyetrackingfinal
+* Based on the internal empty template. 
+* Author: flori
+* Tags: 
+*/
+
+
+/**
 * Name: Eyetracking bicycle interactions
 * Author: Florian Winkler, Martin Moser, Lea Effertz
 * Description: A model which shows how the interactions with other traffic participants affect a cyclists perception area, point of view and stress level.
@@ -22,7 +30,7 @@ global {
 	file road_easy_edges <- file("../includes/easy_route_osm_edges2.geojson");
 	file easybuildings <- file('../includes/easy_4326.geojson');
 	
-	//file polygon_stats_objects <- file("../includes/polygons_object_counts.geojson");
+	file polygon_stats_objects <- file("../includes/polygons_object_counts.geojson");
 	
 	//set the GAMA coordinate reference system using the one of the building_file (Lambert zone II).
 	geometry shape <- envelope(road_diff_edges);
@@ -136,9 +144,9 @@ global {
 		create EasyBuildings from: easybuildings 
 	    with: [elementId::int(read('full_id')), elementHeight::int(read('building_4')), elementColor::string(read('attrForGama'))];
 	    
-	//    create polygon_areas from: polygon_stats_objects
-	//    with: [polygonID::int(read('polygon_id')), other_road_users_cnt::int(read('other_road_users_cnt')), other_motor_traffic_cnt::int(read('other_motor_traffic_cnt')), 
-	//   	traffic_sign_cnt::int(read('traffic_sign_cnt')) ];
+	    create polygon_areas from: polygon_stats_objects
+	    with: [polygonID::int(read('polygon_id')), other_road_users_cnt::int(read('other_road_users_cnt')), other_motor_traffic_cnt::int(read('other_motor_traffic_cnt')), 
+	   	traffic_sign_cnt::int(read('traffic_sign_cnt')) ];
 	    	
 	    
 
@@ -171,6 +179,8 @@ global {
 	
 	reflex create_new_person_leaving when: every(10 #cycles) {
 		create people number: 1 with: (location: one_of(out_intersections).location);
+		traffic_count <- [];
+		add people to: traffic_count;
         }
         
     //reflex remove_dead_agents {
@@ -339,13 +349,13 @@ species cyclist skills: [driving] {
                 default_heart_rate <- heart_rate;
                 careful <- true;
                 time_since_alert <- 0;
-               	traffic_count <- [];
+               	//traffic_count <- [];
             }
             //adjust parameters if there is other traffic
             part_speed <- default_speed * max(0.28, 1 - 0.1 * nearby_count);
             heart_rate <- default_heart_rate * (1 + 0.05 * nearby_count);
             stress <- true;
-            traffic_count <- [];
+            //traffic_count <- [];
         }else{
             // no other traffic detected, results in reverting the paramters if the duration is reached
             if (careful) {
@@ -355,7 +365,7 @@ species cyclist skills: [driving] {
                     heart_rate <- default_heart_rate;
                     stress <- false;
                     careful <- false;
-                    traffic_count <- [];
+                    //traffic_count <- [];
                 }
             }
         }
@@ -482,7 +492,7 @@ species people skills: [driving] {
 	reflex stress_participant{
 		ask cyclist at_distance (40){
 			do action: change_perception;
-			add 1 to: traffic_count;
+			//add 1 to: traffic_count;
 		}
 	}
 	
@@ -555,3 +565,6 @@ experiment easy type: gui {
 	}
 
 }
+
+/* Insert your model definition here */
+
