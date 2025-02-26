@@ -285,9 +285,7 @@ species polygon_areas {
 /////// specify agent species //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 species cyclist skills: [driving] {
-	//geometry action_area <- circle(part_speed) intersection cone(0, 90);
 	geometry perception_area <- circle(part_speed) intersection cone(0, 214);
-	//geometry sight_line <- line([self.location, current_road])intersection circle(speed);
 	
 	//float perception_angle;
 	//float perception_radius;
@@ -332,7 +330,8 @@ species cyclist skills: [driving] {
         //count traffic in perception area
         int nearby_count <- length(traffic_count);
         
-        write nearby_count;
+        write "There are " + nearby_count + " other traffic participants nearby.";
+        
         if (nearby_count > 0){
             // set default values if there arent other traffic participants
             if (!careful){
@@ -435,35 +434,12 @@ species cyclist skills: [driving] {
     
     
     reflex update_actionArea {
-		//action_area <- circle(part_speed + 10) intersection cone(heading - 45, heading + 45);
-		//? add 
-		perception_area <- circle(30) intersection cone(heading - 20, heading + 20);
-		
-		//sight_line <- line([self.location, current_road])intersection circle(speed + 20);
+		perception_area <- circle(30) intersection cone(heading - 20, heading + 20);	
 	}
-	
-//	action heart_change{
-//		heart_rate <- heart_rate * 1.2;
-//	}
-//	
-//	action stress_change{
-//    	stress <- true;
-//    }
-//    
-//    action speed_change {
-//    	part_speed <- part_speed * 0.5;
-//    }
     
     action change_perception{
-    	perception_area <- circle(15) intersection cone(heading - 53, heading + 53);
+    	perception_area <- circle(15) intersection cone(heading - 41.7, heading + 41.7);
     }
-    
-//    action overtake{
-//    	write "before:" + current_lane;
-//    	
-//    	current_lane <- current_lane + 1;
-//    	write "after:" + current_lane;
-//    }
 	
 	// visualisation	
 	aspect default {
@@ -477,10 +453,6 @@ species cyclist skills: [driving] {
 	aspect perception_area {
 		draw self.perception_area color: #goldenrod;
 	}
-	
-//	aspect sight_line {
-//		draw self.sight_line color: #blue ;
-//	}
 		
 
 }
@@ -508,15 +480,10 @@ species people skills: [driving] {
 
 	// cause stress to the participant
 	reflex stress_participant{
-		ask cyclist at_distance (30){
-//			do action: speed_change;
-//			do action: stress_change;
+		ask cyclist at_distance (40){
 			do action: change_perception;
 			add 1 to: traffic_count;
 		}
-//		ask cyclist at_distance (1){
-//			do action: overtake;
-//		}
 	}
 	
 	// visualisation
